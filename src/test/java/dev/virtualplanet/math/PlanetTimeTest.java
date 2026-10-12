@@ -49,9 +49,15 @@ class PlanetTimeTest {
     @Test
     void longitudeOffsetIsAPhaseShift() {
         double reference = PlanetTime.skyAngleTurns(3000L, 24000L);
-        assertEquals(0.25, PlanetTime.localSkyAngleTurns(3000L, 24000L, 0.25) - reference, 1.0e-12);
-        assertEquals(0.0, PlanetTime.localSkyAngleTurns(3000L, 24000L, 0.0), 1.0e-12);
-        assertEquals(reference, PlanetTime.localSkyAngleTurns(3000L, 24000L, 1.0), 1.0e-12);
+        // A phase is only defined modulo one full rotation, so compare wrapped differences: the raw
+        // difference can come back as -0.75 for a genuine +0.25 shift (1.15398 wraps to 0.15398).
+        assertEquals(0.25, Angles.wrapTurns(PlanetTime.localSkyAngleTurns(3000L, 24000L, 0.25) - reference), 1.0e-12);
+        assertEquals(0.0, Angles.wrapTurns(PlanetTime.localSkyAngleTurns(3000L, 24000L, 0.0) - reference), 1.0e-12);
+        assertEquals(0.0, Angles.wrapTurns(PlanetTime.localSkyAngleTurns(3000L, 24000L, 1.0) - reference), 1.0e-12);
+        assertEquals(0.5, Angles.wrapTurns(PlanetTime.localSkyAngleTurns(3000L, 24000L, 0.5) - reference), 1.0e-12);
+        // A negative offset that names the same meridian behaves identically (-0.75 == +0.25).
+        assertEquals(PlanetTime.localSkyAngleTurns(3000L, 24000L, 0.25),
+                PlanetTime.localSkyAngleTurns(3000L, 24000L, -0.75), 1.0e-12);
     }
 
     @Test

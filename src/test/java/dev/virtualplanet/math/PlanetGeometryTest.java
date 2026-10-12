@@ -46,8 +46,14 @@ class PlanetGeometryTest {
     void oppositeCoordinatesAreHalfARotationApart() {
         PlanetGeometry geometry = flat();
         assertEquals(0.5, geometry.angularSeparationTurns(0.0, 20_000.0), EPSILON);
-        assertEquals(0.5, geometry.angularSeparationTurns(-20_000.0, 20_000.0), EPSILON);
+        // x = -20000 and x = +20000 are the *same* meridian on a 40000 block planet (its antimeridian),
+        // which is exactly why the longitude is normalised instead of growing without bound.
+        assertEquals(0.0, geometry.angularSeparationTurns(-20_000.0, 20_000.0), EPSILON);
+        assertEquals(0.0, geometry.angularSeparationTurns(30_000.0, -10_000.0), EPSILON);
         assertEquals(0.25, geometry.angularSeparationTurns(0.0, 10_000.0), EPSILON);
+        // ... and the separation is never more than half a rotation.
+        assertEquals(0.5, geometry.angularSeparationTurns(-10_000.0, 10_000.0), EPSILON);
+        assertEquals(0.25, geometry.angularSeparationTurns(30_000.0, 40_000.0), EPSILON);
     }
 
     @Test

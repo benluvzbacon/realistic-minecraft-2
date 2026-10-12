@@ -134,12 +134,18 @@ class MultiPlayerScenarioTest {
     @Test
     void theWorldTimeItselfIsNeverModified() {
         // The mod is pure computation: the shared time in and the shared time out are the same value.
-        long sharedTime = 13000L;
+        long sharedTime = 6000L; // the reference meridian sees vanilla noon
         PlanetGeometry geometry = world();
-        localAngle(geometry, sharedTime, 12345.0);
-        assertEquals(13000L, sharedTime);
-        SolarPosition sunset = SolarCalculator.positionFromSkyAngle(Math.toRadians(0.0), 0.0,
-                localAngle(geometry, sharedTime, 10_000.0));
-        assertTrue(sunset.elevationDegrees() < 1.0 && sunset.elevationDegrees() > -1.0);
+        localAngle(geometry, sharedTime, 12_345.0);
+        assertEquals(6000L, sharedTime, "the shared clock is read, never written");
+
+        // A player a quarter of the way east has local solar time 18:00 while the reference meridian has
+        // noon: solar time is the local sky angle + 0.5 turns, so 0.25 turns is exactly sunset.
+        double localAngle = localAngle(geometry, sharedTime, 10_000.0);
+        assertEquals(0.25, localAngle, EPSILON);
+        assertEquals("18:00", PlanetTime.formatSolarTime(PlanetTime.solarTimeTurns(localAngle)));
+        SolarPosition sunset = SolarCalculator.positionFromSkyAngle(0.0, 0.0, localAngle);
+        assertEquals(0.0, sunset.elevationDegrees(), 1.0e-6, "the sun sits on that player's horizon");
+        assertEquals(270.0, sunset.azimuthDegrees(), 1.0e-6, "the western horizon");
     }
 }
