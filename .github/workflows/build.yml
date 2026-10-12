@@ -93,16 +93,14 @@ jobs:
           set +e
           awk 'NR <= 60 { gsub(/%/,"%25"); print "::error title=CI diagnostic::" $0 }' .ci-logs/summary.txt
 
-      - name: commit diagnostics back to the branch
-        if: failure() && github.event_name == 'push'
+      - name: publish the test summary
+        if: always()
         shell: bash
         run: |
           set +e
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f .ci-logs
-          git commit -m "CI diagnostics for ${GITHUB_SHA} [skip ci]" || exit 0
-          git push || exit 0
+          SUMMARY=$(grep -E "tests completed|BUILD SUCCESSFUL|BUILD FAILED" gradle-test.log gradle-build.log 2>/dev/null | head -5)
+          if [ -z "$SUMMARY" ]; then SUMMARY="no Gradle summary line found"; fi
+          printf '%s\n' "$SUMMARY" | awk '{ gsub(/%/,"%25"); print "::notice title=Gradle summary::" $0 }'
 
       - name: comment the diagnostics on the pull request
         if: failure() && github.event_name == 'pull_request'

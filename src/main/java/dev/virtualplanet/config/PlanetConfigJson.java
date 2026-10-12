@@ -38,7 +38,6 @@ public final class PlanetConfigJson {
         map.put("seasonsEnabled", config.seasonsEnabled);
         map.put("yearLengthDays", config.yearLengthDays);
         map.put("seasonOffsetDays", config.seasonOffsetDays);
-        map.put("renderLatitudeTilt", config.renderLatitudeTilt);
         map.put("localSkyBrightness", config.localSkyBrightness);
         map.put("debug", config.debug);
         return map;
@@ -81,7 +80,6 @@ public final class PlanetConfigJson {
         config.seasonsEnabled = readBoolean(map, "seasonsEnabled", config.seasonsEnabled, warnings);
         config.yearLengthDays = readDouble(map, "yearLengthDays", config.yearLengthDays, warnings);
         config.seasonOffsetDays = readDouble(map, "seasonOffsetDays", config.seasonOffsetDays, warnings);
-        config.renderLatitudeTilt = readBoolean(map, "renderLatitudeTilt", config.renderLatitudeTilt, warnings);
         config.localSkyBrightness = readBoolean(map, "localSkyBrightness", config.localSkyBrightness, warnings);
         config.debug = readBoolean(map, "debug", config.debug, warnings);
 

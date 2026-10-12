@@ -70,13 +70,6 @@ public final class PlanetConfig {
     public double yearLengthDays = 365.0;
     /** Shifts the seasonal cycle, in days. */
     public double seasonOffsetDays = 0.0;
-    /**
-     * EXPERIMENTAL: additionally tilt the rendered celestial arc by {@code latitude - declination} so that
-     * the rendered sun matches the computed elevation and azimuth instead of always passing through the
-     * zenith. See README - this changes the visible sky and is disabled by default.
-     */
-    public boolean renderLatitudeTilt = false;
-
     // --- atmosphere ----------------------------------------------------------------------------
     /**
      * Let the client's sky brightness (the light map) follow the local sky angle, so a player standing in
@@ -112,7 +105,6 @@ public final class PlanetConfig {
         copy.seasonsEnabled = seasonsEnabled;
         copy.yearLengthDays = yearLengthDays;
         copy.seasonOffsetDays = seasonOffsetDays;
-        copy.renderLatitudeTilt = renderLatitudeTilt;
         copy.localSkyBrightness = localSkyBrightness;
         copy.debug = debug;
         return copy;
@@ -309,7 +301,6 @@ public final class PlanetConfig {
                 && seasonsEnabled == that.seasonsEnabled
                 && Double.compare(yearLengthDays, that.yearLengthDays) == 0
                 && Double.compare(seasonOffsetDays, that.seasonOffsetDays) == 0
-                && renderLatitudeTilt == that.renderLatitudeTilt
                 && localSkyBrightness == that.localSkyBrightness
                 && debug == that.debug;
     }
@@ -318,7 +309,7 @@ public final class PlanetConfig {
         return Objects.hash(enabled, deriveCircumferenceFromWorldBorder, circumferenceBlocks, borderCircumferenceFactor,
                 referenceFollowsWorldBorderCenter, referenceX, referenceZ, referenceLongitudeDegrees,
                 rotationPeriodTicks, smoothCelestialMotion, localMoonPhase, latitudeAxis, latitudeRangeDegrees,
-                axialTiltDegrees, seasonsEnabled, yearLengthDays, seasonOffsetDays, renderLatitudeTilt,
+                axialTiltDegrees, seasonsEnabled, yearLengthDays, seasonOffsetDays,
                 localSkyBrightness, debug);
     }
 
@@ -327,11 +318,11 @@ public final class PlanetConfig {
                 "enabled=%s borderDerivedCircumference=%s circumference=%.1f factor=%.3f reference=(%.1f,%.1f) "
                         + "referenceLongitude=%.2fdeg rotationPeriod=%d ticks smooth=%s localMoonPhase=%s latitudeAxis=%s "
                         + "latitudeRange=%.2fdeg axialTilt=%.2fdeg seasons=%s yearLength=%.2fd seasonOffset=%.2fd "
-                        + "renderLatitudeTilt=%s localSkyBrightness=%s debug=%s",
+                        + "localSkyBrightness=%s debug=%s",
                 enabled, deriveCircumferenceFromWorldBorder, circumferenceBlocks, borderCircumferenceFactor,
                 referenceX, referenceZ, referenceLongitudeDegrees, rotationPeriodTicks, smoothCelestialMotion,
                 localMoonPhase, latitudeAxis, latitudeRangeDegrees, axialTiltDegrees, seasonsEnabled, yearLengthDays,
-                seasonOffsetDays, renderLatitudeTilt, localSkyBrightness, debug);
+                seasonOffsetDays, localSkyBrightness, debug);
     }
 
     /** True when this configuration differs from the supplied one in any field that affects the sky. */

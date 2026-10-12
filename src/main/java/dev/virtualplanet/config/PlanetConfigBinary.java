@@ -43,7 +43,6 @@ public final class PlanetConfigBinary {
         payload.put((byte) (config.seasonsEnabled ? 1 : 0));
         payload.putDouble(config.yearLengthDays);
         payload.putDouble(config.seasonOffsetDays);
-        payload.put((byte) (config.renderLatitudeTilt ? 1 : 0));
         payload.put((byte) (config.localSkyBrightness ? 1 : 0));
         payload.put((byte) (config.debug ? 1 : 0));
 
@@ -105,7 +104,6 @@ public final class PlanetConfigBinary {
             config.seasonsEnabled = payload.get() != 0;
             config.yearLengthDays = payload.getDouble();
             config.seasonOffsetDays = payload.getDouble();
-            config.renderLatitudeTilt = payload.get() != 0;
             config.localSkyBrightness = payload.get() != 0;
             config.debug = payload.get() != 0;
         } catch (RuntimeException exception) {

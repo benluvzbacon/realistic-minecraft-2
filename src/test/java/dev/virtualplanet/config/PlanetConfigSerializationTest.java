@@ -33,7 +33,6 @@ class PlanetConfigSerializationTest {
         config.seasonsEnabled = true;
         config.yearLengthDays = 120.0;
         config.seasonOffsetDays = 5.5;
-        config.renderLatitudeTilt = true;
         config.localSkyBrightness = false;
         config.debug = true;
         config.sanitize();

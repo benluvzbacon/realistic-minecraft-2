@@ -2,122 +2,121 @@
 
 > Authoritative progress record. A fresh session must be able to resume from this file alone.
 
-Last updated: test suite down to its last wrong expectation; stage 4 client code pushed.
+Last updated: all stages implemented; CI green (compile, tests, jar build and artifact upload).
 
 ## Environment facts (important)
 
-* The development sandbox has **no JDK with `javac`, no Gradle distribution and no access to Maven hosts**
+* The development sandbox has **no `javac`, no Gradle distribution and no access to Maven hosts**
   (`maven.fabricmc.net`, `libraries.minecraft.net`, `services.gradle.org`, `meta.fabricmc.net` are
-  TLS-blocked). Local builds are therefore impossible.
-* Consequences:
-  * Compilation and the JUnit run happen in **GitHub Actions** (`.github/workflows/build.yml`).
-  * Locally the sources are checked with two Python gates (see "Local gates" below).
-  * Do not claim local compilation. Do not claim runtime testing unless it happened in CI.
-* **Reading CI results from the sandbox:** the raw job log endpoint and the artifact/blob endpoint are
-  unreachable (`EOF`) and `gh run download` fails for the same reason. Therefore the workflow, on failure,
-  (a) prints the useful lines as check-run **annotations**
-  (`gh api /repos/benluvzbacon/realistic-minecraft-2/check-runs/<id>/annotations`) and
-  (b) **commits** `.ci-logs/summary.txt`, the raw `gradle-*.log` files and the JUnit XML back to the branch
-  with a `[skip ci]` message. Read them with `git fetch && git show <sha>:.ci-logs/summary.txt`.
-  Remove `.ci-logs/` once the build is green.
+  TLS-blocked). Local builds are impossible; a JRE-only JDK is used for reference work.
+* Therefore **CI is the compiler and the test runner** (`.github/workflows/build.yml`), and it is also the
+  only source of build/test evidence. GitHub's raw log endpoint and artifact/blob endpoints are
+  unreachable from the sandbox (`EOF`), so CI publishes what a reader needs elsewhere:
+  * check-run annotations - read with
+    `gh api /repos/benluvzbacon/realistic-minecraft-2/check-runs/<check_run_id>/annotations`
+    (the workflow emits the interesting Gradle lines, including a `Gradle summary` notice);
+  * the logs and the JUnit XML as artifacts (`gh run download` fails here, but the workflow is standard);
+  * on failure, a comment on the pull request containing the same extract.
+* Do not claim local compilation, and do not claim runtime testing: **no Minecraft client exists here**.
 
-## Local gates
+## Local gates (use these before every push)
 
 ```
-/tmp/gate/bin/python tools/check_java_syntax.py   src/main/java src/client/java src/test/java   # parses (javalang)
-/tmp/gate/bin/python tools/check_java_symbols.py  src/main/java src/client/java src/test/java   # our own API resolved
+/tmp/gate/bin/python tools/check_java_syntax.py   src/main/java src/client/java src/test/java
+/tmp/gate/bin/python tools/check_java_symbols.py  src/main/java src/client/java src/test/java
 ```
 
-`check_java_symbols.py` resolves every method/constructor/field access on classes of this project
-(inheritance included) and every unqualified identifier, ignoring external types. It caught the real CI
-failure locally after the fact (see below). Recreate the toolchain with
-`python3 -m venv /tmp/gate && /tmp/gate/bin/pip install javalang` (PyPI is reachable).
+The first parses every file with javalang (a Java-8 grammar: keep sources free of records/text blocks/
+switch expressions). The second resolves every method, constructor and field access on this project's own
+classes and every bare identifier - it caught the real CI failure locally after the fact.
+Recreate the toolchain with `python3 -m venv /tmp/gate && /tmp/gate/bin/pip install javalang` (PyPI works).
 
 ## Stage status
 
 | Stage | Description | Status |
 | --- | --- | --- |
-| 1 | Project foundation (Gradle, Loom, metadata, CI workflow) | BUILD VERIFIED: `:compileJava`, `:compileTestJava` and `processResources` succeed in CI; the playable jar is built as soon as the test task is green |
-| 2 | Planet mathematics + configuration + unit tests | IMPLEMENTED; 61 of 62 tests pass in CI, the last one was a wrong expectation in the test itself (fixed in the commit that carries this file) |
-| 3 | Client rendering investigation | IMPLEMENTED (research complete, see "Verified 1.21.1 facts") |
-| 4 | Local sun implementation (client mixin) | IMPLEMENTED, compile status pending: `client/LocalSky` + `client/mixin/ClientWorldMixin` are pushed |
-| 5 | Twilight, moon, seasons, atmosphere refinements | PARTIAL: twilight/moon/season math exists in `sky/` + `math/` and is wired into the mixin through the sky angle and the moon phase; fog/sky/cloud colours follow automatically because they all read the same angle |
-| 6 | Multiplayer sync, commands, config validation | NOT STARTED |
-| 7 | Full test pass and bug fixing | NOT STARTED |
-| 8 | Final jar, documentation, artifact upload | NOT STARTED |
+| 1 | Project foundation (Gradle wrapper, Loom, metadata, mixin configs, CI, README) | BUILD VERIFIED |
+| 2 | Planet mathematics, configuration, unit tests | TEST VERIFIED |
+| 3 | Investigation of the 1.21.1 sky rendering | IMPLEMENTED (see the verified facts below) |
+| 4 | Local sun in the client (per-player celestial phase) | IMPLEMENTED, BUILD VERIFIED (code compiles in CI); **runtime UNVERIFIED** - no client available |
+| 5 | Twilight, moon, seasons, atmosphere refinements | IMPLEMENTED: local moon phase and local light map are wired; twilight/declination/seasons are computed and reported; the *rendered* arc stays vanilla's great circle (documented limitation) |
+| 6 | Multiplayer sync, commands, validation | IMPLEMENTED, BUILD VERIFIED: payload registration, join sync, once-per-second border watch, `/virtualplanet info|debug|recalculate|reload` |
+| 7 | Full test pass and bug fixing | TEST VERIFIED: the whole suite runs green in CI (four wrong test expectations and one compile error were found and fixed this way) |
+| 8 | Final jar, artifact, documentation | BUILD VERIFIED: `build/libs/virtualplanet-1.0.0.jar` is built, existence-checked and uploaded by CI |
 
 ## CI history
 
 | Run | Commit | Result |
 | --- | --- | --- |
-| 38260558063 | `35378b6` | FAILED at `run unit tests`. Cause was unknown: logs unreachable, the old workflow published empty diagnostics. |
-| 38260878490 | `1fad92e` | FAILED the same way; annotations contained only Gradle stack frames. |
-| 38261363107 | `0ea660c` | FAILED, now with useful diagnostics: `:compileJava` **succeeded** (Loom 1.6.11, yarn `1.21.1+build.1`, loader 0.15.11, Fabric API 0.116.17+1.21.1 all resolved); `:compileTestJava` failed with one error - `MultiPlayerScenarioTest.java:116: cannot find symbol: variable halfWayAround` (typo for `halfWayRound`). Fixed. |
-| 38261735253 | `17baf00` | Compile fully green, `test` ran: **62 tests, 4 failed** - all four were wrong expectations in the tests, not bugs in the implementation. The acceptance test (four players at quarter longitudes seeing midday/sunset/midnight/sunrise at one shared time) passed. Fixed all four. |
-| 38262122275 | `59b5da4` | **62 tests, 1 failed**: a replacement assertion I had added used 4.022 instead of 4.0151 degrees (day 10 of a 365 day year). Fixed by computing the expectation from the same formula. |
+| 38260558063 | `35378b6` | FAILED at `run unit tests`; cause unknown at the time (diagnostics were empty, logs unreachable). |
+| 38261363107 | `0ea660c` | `:compileJava` succeeded (Loom 1.6.11, Yarn `1.21.1+build.1`, loader 0.15.11, Fabric API 0.116.17+1.21.1 all resolved); one test-compile error (`halfWayAround` typo). Fixed. |
+| 38261735253 | `17baf00` | 62 tests, 4 failed - all four were wrong expectations in the tests. Fixed. |
+| 38262122275 | `59b5da4` | 62 tests, 1 failed - one replacement assertion used 4.022 instead of 4.0151 degrees. Fixed. |
+| 38262436181 | `895a366` | **SUCCESS**: compile, tests, jar build, jar verification and artifact upload all green. |
+| 38262878258 / 38262886433 | `91f14d7` | **SUCCESS**: the client mixin, the networking layer and the new sky-model tests all compile and pass; jar uploaded. |
 
-## Verified 1.21.1 facts the rendering work relies on
+## Verified 1.21.1 facts the implementation relies on
 
-These were verified from the Yarn `1.21.1` mappings tree and from decompiled 1.21.1 sources, not guessed:
+Verified from the Yarn `1.21.1` mappings and from decompiled 1.21.1 sources - not guessed:
 
-* `net.minecraft.world.LunarWorldView#getSkyAngle(float)` is an interface **default** method:
-  `return this.getDimension().getSkyAngle(this.getLunarTime());` - it ignores `tickDelta`. There is no
-  concrete implementation to inject into, so stage 4 overrides/redirects instead (see below).
-* `net.minecraft.world.World#getSkyAngleRadians(float)` = `getSkyAngle(tickDelta) * 2*PI`.
-* `net.minecraft.world.dimension.DimensionType#getSkyAngle(long)`:
-  `d = fractionalPart(time/24000 - 0.25); e = 0.5 - cos(d*PI)/2; return (d*2 + e)/3`.
-* `DimensionType#getMoonPhase(long)` = `(int)(time/24000L % 8L + 8L) % 8`, `MOON_SIZES = {1.0, 0.75, 0.5, 0.25, 0.0, 0.25, 0.5, 0.75}`.
-* `net.minecraft.client.world.ClientWorld#getSkyBrightness(float)` uses `this.getSkyAngle(tickDelta)`,
-  and `LightmapTextureManager` uses `getSkyBrightness`, so overriding the sky angle also affects the
-  client light map (this is what `localSkyBrightness` toggles).
-* The vanilla renderer (`WorldRenderer#renderSky(Matrix4f, Matrix4f, float, Camera, boolean, Runnable)`,
-  verified signature) applies `rotateY(-90)` then `rotateX(skyAngle*360)` and draws the sun at `+Y` of that
-  frame: an east-west great circle through the zenith. The moon is at `-Y` and the stars share the matrix,
-  and `DimensionEffects#getFogColorOverride(skyAngle, tickDelta)` supplies the sunrise/sunset fog colour -
-  all of them therefore follow the sky angle automatically. The single rotation call site is
-  `WorldRenderer.java:1561`.
-* `World#getWorldBorder()` is callable (`CollisionView#method_8621`, field `World#border`).
-* Precedent for the chosen hook: `nanorover59/Starflight-Innovation` adds
-  `@Mixin(World.class) + @Override public float getSkyAngle(float)`.
+* `LunarWorldView#getSkyAngle(float)` is an interface **default** method
+  (`getDimension().getSkyAngle(getLunarTime())`, tick delta ignored); `getSkyAngle` has no concrete
+  declaration in `World`/`ClientWorld`, which is why stage 4 *adds* the method instead of injecting.
+* `LunarWorldView#getMoonSize()` and `#getMoonPhase()` are defaults derived from `getLunarTime()`, so
+  overriding the phase moves and resizes the moon.
+* `WorldAccess#getLunarTime()` = `getLevelProperties().getTimeOfDay()` = `World#getTimeOfDay()`, so the
+  mod's shared clock is exactly vanilla's clock.
+* `DimensionType#getSkyAngle(long)`: `d = frac(time/24000 - 0.25); e = 0.5 - cos(d*PI)/2; return (d*2+e)/3`.
+* `DimensionType#getMoonPhase(long)` = `(int)(time/24000L % 8L + 8L) % 8`; `MOON_SIZES` as implemented.
+* `ClientWorld#getSkyBrightness(float)` (verified body) is used by the light map; it reads
+  `getSkyAngle(tickDelta)`, and so do `getSkyColor`, the cloud colour and the fog colour - one override
+  makes all of them local.
+* `WorldRenderer#renderSky(Matrix4f, Matrix4f, float, Camera, boolean, Runnable)` applies one
+  `rotateY(-90)` + `rotateX(skyAngle * 360)` and draws the sun at `+Y`, the moon at `-Y`, stars in the
+  same frame (Fabric API's own mixin targets the same descriptor).
+* `World#getWorldBorder()` (public method, field `border`), `WorldBorder#getCenterX/getCenterZ/getSize`,
+  `Entity#getX/getZ`, `MinecraftClient#getInstance/getCameraEntity/player`,
+  `ServerPlayConnectionEvents.JOIN`, `ServerTickEvents.END_SERVER_TICK`, `PayloadTypeRegistry.playS2C()`,
+  `ClientPlayNetworking.registerGlobalReceiver`, `CustomPayload.codecOf` (value first),
+  `CommandRegistrationCallback.EVENT` (v2), `CommandManager.literal`, `ServerCommandSource.getPlayer`,
+  `sendFeedback(Supplier, boolean)`, `hasPermissionLevel(int)` - each checked against the mappings.
 
 ## Files
 
-* Build system: `build.gradle`, `settings.gradle`, `gradle.properties`, `gradlew`, `gradle/wrapper/*`,
-  `.github/workflows/build.yml`.
-* Local gates: `tools/check_java_syntax.py`, `tools/check_java_symbols.py`.
-* Pure math (no Minecraft dependency, unit tested): `src/main/java/dev/virtualplanet/math/`
-  (`Angles`, `LatitudeAxis`, `PlanetGeometry`, `PlanetTime`, `SolarCalculator`, `SolarPosition`).
-* Local sky model (no Minecraft dependency): `src/main/java/dev/virtualplanet/sky/`
-  (`LocalSkyModel`, `LocalSkyView`) - the single place where the mod's astronomy is computed, shared by the
-  client mixin, the commands and the tests. **No tests written for it yet.**
-* Configuration (pure, unit tested): `src/main/java/dev/virtualplanet/config/`
-  (`PlanetConfig`, `PlanetConfigJson`, `PlanetConfigBinary`, `PlanetConfigManager`, `SimpleJson`).
-* Client: `src/client/java/dev/virtualplanet/client/LocalSky.java` (viewer position + authoritative world
-  border + shared time, one cached view per tick) and
-  `src/client/java/dev/virtualplanet/client/mixin/ClientWorldMixin.java` (adds `getSkyAngle(float)` and
-  `getMoonPhase()` to `ClientWorld`, plus one `@Inject` on `getSkyBrightness` for the light map option).
-  `virtualplanet.client.mixins.json` lists it; `virtualplanet.mixins.json` is still empty.
-* Mod glue: `src/main/java/dev/virtualplanet/VirtualPlanet.java`,
-  `src/client/java/dev/virtualplanet/client/VirtualPlanetClient.java`, resources.
-* Tests: `src/test/java/dev/virtualplanet/{math,config,integration}/` (8 test classes).
+* Build: `build.gradle`, `settings.gradle`, `gradle.properties`, `gradlew`, `gradle/wrapper/*`,
+  `.github/workflows/build.yml`, `tools/check_java_syntax.py`, `tools/check_java_symbols.py`.
+* Pure math (unit tested): `src/main/java/dev/virtualplanet/math/` - `Angles`, `LatitudeAxis`,
+  `PlanetGeometry`, `PlanetTime`, `SolarCalculator`, `SolarPosition`.
+* Sky model (unit tested, shared by client and commands): `src/main/java/dev/virtualplanet/sky/` -
+  `LocalSkyModel`, `LocalSkyView`.
+* Configuration (unit tested): `src/main/java/dev/virtualplanet/config/` - `PlanetConfig`, `PlanetConfigJson`,
+  `PlanetConfigBinary`, `PlanetConfigManager`, `SimpleJson`.
+* Networking: `src/main/java/dev/virtualplanet/net/` - `PlanetConfigPayload`, `PlanetConfigSync`.
+* Commands: `src/main/java/dev/virtualplanet/command/VirtualPlanetCommand.java`.
+* Client: `src/client/java/dev/virtualplanet/client/LocalSky.java` (viewer position + world border +
+  shared time, one cached view per tick) and `.../client/mixin/ClientWorldMixin.java`.
+* Entry points: `VirtualPlanet` (main), `VirtualPlanetClient` (client receiver).
+* Tests: `src/test/java/dev/virtualplanet/{math,config,integration,sky}/`.
 
 ## Known limitations / open items
 
-* No client runtime verification: the mixin is written but has never been loaded in a real client
-  (the sandbox cannot run Minecraft). Everything runtime-related is marked UNVERIFIED in the README.
-* `renderLatitudeTilt` is designed but not implemented; it will be config-gated and marked unverified.
-* Yarn is pinned to `1.21.1+build.1` - confirmed correct in CI (the dependency resolved).
+* **No runtime verification.** The mixin, the payload and the commands have never run inside Minecraft.
+  Everything runtime-facing is marked UNVERIFIED in the README. The most valuable next step, if a client
+  ever becomes available: launch `./gradlew runClient`, join a world, place two players at longitudes 0
+  and half a circumference and compare the sky.
+* The rendered sun path stays vanilla's east-west great circle. Latitude and declination shape the
+  *reported* astronomy, the moon phase and the light map, but the drawn arc is not tilted: doing that
+  would mean injecting into `WorldRenderer#renderSky`'s matrix calls, which cannot be runtime-verified
+  here and would risk the whole mod for a cosmetic option. Removed rather than shipped as a dead flag.
+* Shader packs that replace sky rendering may ignore the phase; nothing is promised about Iris/Optuna.
+* Per-player block lighting/shadows are explicitly **not** claimed.
 
 ## Exact next action
 
-1. Read the result of the next run: the expectation is **62/62 tests green** and
-   `build/libs/virtualplanet-1.0.0.jar` in the artifacts. If a test fails, read `.ci-logs/summary.txt`.
-2. Stage 6 (networking), in this order:
-   * `dev.virtualplanet.net.PlanetConfigPayload` (S2C, config + revision) registered with
-     `PayloadTypeRegistry.playS2C()`, payload codec built from `CustomPayload.codecOf(...)`;
-   * server sender on `ServerPlayConnectionEvents.JOIN` plus a border/config watcher on
-     `ServerTickEvents.END_SERVER_TICK` (no per-frame traffic);
-   * client receiver with `ClientPlayNetworking.registerGlobalReceiver(...)` calling
-     `LocalSky.acceptServerConfig(...)`.
-3. Stage 6b: `/virtualplanet info|recalculate|reload|debug` via the v2 `CommandRegistrationCallback`
-   (read its exact signature in the extracted Fabric API tree first) and the README/status updates.
+1. Confirm the run for the current commit is green (annotations carry a `Gradle summary` notice with the
+   test count) and that the `virtualplanet-mod-jar` artifact exists.
+2. If a Minecraft client ever becomes available: `./gradlew runClient`, then verify in game:
+   `/virtualplanet info` at two longitudes, the sun position at both, and that `/time query daytime`
+   never changes. Record the result here and in the README ("runtime verified").
+3. Optional, only with a runtime to test against: a `WorldRenderer` mixin for the celestial tilt, and
+   Sodium/Iris compatibility checks.
