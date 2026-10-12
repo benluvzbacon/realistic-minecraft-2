@@ -32,11 +32,13 @@ class SolarCalculatorTest {
         // Shifting the year by 81.25 days moves day 10 onto the summer solstice (day 91.25).
         double withOffset = SolarCalculator.declinationRadians(TILT, 10.0, 365.0, 81.25, true);
         assertEquals(TILT, withOffset, 1.0e-9, "the offset day must land exactly on the solstice");
-        // Declinations are radians here, so compare in degrees: 23.44 vs 4.02 degrees.
+        // Declinations are radians here, so compare in degrees: 23.44 against 4.015 degrees.
         assertTrue(Math.abs(Angles.radiansToDegrees(withoutOffset - withOffset)) > 1.0,
                 "the offset must actually change the declination");
         assertEquals(23.44, Angles.radiansToDegrees(withOffset), 1.0e-9);
-        assertEquals(4.022, Angles.radiansToDegrees(withoutOffset), 1.0e-3);
+        // Day 10 of a 365 day year is 19.4 degrees before the solstice: 23.44 * sin(2*PI*10/365).
+        assertEquals(SolarCalculator.EARTH_AXIAL_TILT_DEGREES * Math.sin(Angles.TAU * 10.0 / 365.0),
+                Angles.radiansToDegrees(withoutOffset), 1.0e-9);
     }
 
     @Test
