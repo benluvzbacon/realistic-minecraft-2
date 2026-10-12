@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="dev.virtualplanet.math.PlanetTimeTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-12T14:21:11" hostname="runnervmmprz5" time="0.012">
+  <properties/>
+  <testcase name="noonIsTurnZeroAndMidnightIsHalf()" classname="dev.virtualplanet.math.PlanetTimeTest" time="0.0"/>
+  <testcase name="solarTimeTurnsMapToAClock()" classname="dev.virtualplanet.math.PlanetTimeTest" time="0.001"/>
+  <testcase name="longitudeOffsetIsAPhaseShift()" classname="dev.virtualplanet.math.PlanetTimeTest" time="0.002"/>
+  <testcase name="localPhaseIsAlwaysANormalisedTurn()" classname="dev.virtualplanet.math.PlanetTimeTest" time="0.003"/>
+  <testcase name="matchesVanillaAtTheReferenceMeridian()" classname="dev.virtualplanet.math.PlanetTimeTest" time="0.0"/>
+  <testcase name="customRotationPeriodScalesThePhase()" classname="dev.virtualplanet.math.PlanetTimeTest" time="0.001"/>
+  <testcase name="oppositeLongitudesAreHalfARotationApartAtTheSameGlobalTime()" classname="dev.virtualplanet.math.PlanetTimeTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

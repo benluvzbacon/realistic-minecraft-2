@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="dev.virtualplanet.config.PlanetConfigTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-12T14:21:11" hostname="runnervmmprz5" time="0.012">
+  <properties/>
+  <testcase name="circumferenceCanBeIndependentFromTheBorder()" classname="dev.virtualplanet.config.PlanetConfigTest" time="0.001"/>
+  <testcase name="referenceCoordinateFollowsTheBorderCentreByDefault()" classname="dev.virtualplanet.config.PlanetConfigTest" time="0.0"/>
+  <testcase name="rotationPeriodAndCircumferenceAreClamped()" classname="dev.virtualplanet.config.PlanetConfigTest" time="0.003"/>
+  <testcase name="celestialTiltIsDeclinationMinusLatitude()" classname="dev.virtualplanet.config.PlanetConfigTest" time="0.0"/>
+  <testcase name="copyAndEqualityBehave()" classname="dev.virtualplanet.config.PlanetConfigTest" time="0.0"/>
+  <testcase name="malformedNumbersAreRepaired()" classname="dev.virtualplanet.config.PlanetConfigTest" time="0.001"/>
+  <testcase name="defaultsAreValidOnTheirOwn()" classname="dev.virtualplanet.config.PlanetConfigTest" time="0.0"/>
+  <testcase name="nullEnumFallsBackToTheDefault()" classname="dev.virtualplanet.config.PlanetConfigTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
