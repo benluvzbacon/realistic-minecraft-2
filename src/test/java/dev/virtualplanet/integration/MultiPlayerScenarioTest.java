@@ -113,7 +113,7 @@ class MultiPlayerScenarioTest {
         assertEquals(0.0, localAngle(geometry, sharedTime, 1_000.0), EPSILON,
                 "the border centre must see vanilla noon");
         double halfWayRound = localAngle(geometry, sharedTime, 21_000.0);
-        assertEquals(0.5, Math.abs(Angles.wrapTurnsSigned(halfWayAround)), EPSILON);
+        assertEquals(0.5, Math.abs(Angles.wrapTurnsSigned(halfWayRound)), EPSILON);
     }
 
     @Test
