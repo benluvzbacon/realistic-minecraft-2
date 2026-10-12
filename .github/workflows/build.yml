@@ -101,6 +101,18 @@ jobs:
           SUMMARY=$(grep -E "tests completed|BUILD SUCCESSFUL|BUILD FAILED" gradle-test.log gradle-build.log 2>/dev/null | head -5)
           if [ -z "$SUMMARY" ]; then SUMMARY="no Gradle summary line found"; fi
           printf '%s\n' "$SUMMARY" | awk '{ gsub(/%/,"%25"); print "::notice title=Gradle summary::" $0 }'
+          python3 - <<'PY'
+          import glob
+          import re
+          tests = failed = 0
+          for path in glob.glob("build/test-results/test/*.xml"):
+              head = open(path, errors="replace").read(2000)
+              match = re.search(r'tests="(\d+)"[^>]*?failures="(\d+)"', head)
+              if match:
+                  tests += int(match.group(1))
+                  failed += int(match.group(2))
+          print("::notice title=JUnit totals::{} tests, {} failures".format(tests, failed))
+          PY
 
       - name: comment the diagnostics on the pull request
         if: failure() && github.event_name == 'pull_request'

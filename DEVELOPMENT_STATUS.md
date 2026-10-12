@@ -54,6 +54,7 @@ Recreate the toolchain with `python3 -m venv /tmp/gate && /tmp/gate/bin/pip inst
 | 38262122275 | `59b5da4` | 62 tests, 1 failed - one replacement assertion used 4.022 instead of 4.0151 degrees. Fixed. |
 | 38262436181 | `895a366` | **SUCCESS**: compile, tests, jar build, jar verification and artifact upload all green. |
 | 38262878258 / 38262886433 | `91f14d7` | **SUCCESS**: the client mixin, the networking layer and the new sky-model tests all compile and pass; jar uploaded. |
+| 38263905964 / 38263912671 | `e5dafb0` | **SUCCESS** on the final tree (dead config flag removed, workflow and docs finalised): compile, tests, jar build, jar verification and artifact upload all green. Artifacts: `virtualplanet-mod-jar` (53,157 bytes), `test-results`, `gradle-logs`. The workflow publishes a `JUnit totals` annotation with the exact test count. |
 
 ## Verified 1.21.1 facts the implementation relies on
 
