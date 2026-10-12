@@ -33,6 +33,27 @@ public final class PlanetTime {
         return Angles.wrapTurns((double) time / (double) period - 0.25);
     }
 
+    /**
+     * Uniform rotation turns including a partial tick.
+     *
+     * <p>Vanilla ignores the tick delta (the sky jumps once per tick). With {@code smooth} enabled the
+     * mod interpolates inside the tick, which is purely cosmetic and is what the
+     * {@code smoothCelestialMotion} option toggles.
+     */
+    public static double uniformTurns(long time, long rotationPeriodTicks, double partialTicks, boolean smooth) {
+        double turns = uniformTurns(time, rotationPeriodTicks);
+        if (smooth) {
+            long period = rotationPeriodTicks <= 0 ? VANILLA_DAY_TICKS : rotationPeriodTicks;
+            turns += Angles.clamp(partialTicks, 0.0, 1.0) / (double) period;
+        }
+        return Angles.wrapTurns(turns);
+    }
+
+    /** Celestial phase including a partial tick (see {@link #uniformTurns(long, long, double, boolean)}). */
+    public static double skyAngleTurns(long time, long rotationPeriodTicks, double partialTicks, boolean smooth) {
+        return easedTurns(uniformTurns(time, rotationPeriodTicks, partialTicks, smooth));
+    }
+
     /** Vanilla's day/night easing, applied to uniform turns in {@code [0, 1)}. */
     public static double easedTurns(double uniformTurns) {
         double d = Angles.wrapTurns(uniformTurns);
@@ -60,6 +81,12 @@ public final class PlanetTime {
      */
     public static double localSkyAngleTurns(long time, long rotationPeriodTicks, double longitudeOffsetTurns) {
         return Angles.wrapTurns(skyAngleTurns(time, rotationPeriodTicks) + longitudeOffsetTurns);
+    }
+
+    /** Local celestial phase including a partial tick. */
+    public static double localSkyAngleTurns(long time, long rotationPeriodTicks, double longitudeOffsetTurns,
+                                            double partialTicks, boolean smooth) {
+        return Angles.wrapTurns(skyAngleTurns(time, rotationPeriodTicks, partialTicks, smooth) + longitudeOffsetTurns);
     }
 
     /**

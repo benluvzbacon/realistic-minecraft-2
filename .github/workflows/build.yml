@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build:
@@ -32,20 +33,79 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: run unit tests
-        run: ./gradlew test --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew test --stacktrace --console=plain --no-daemon 2>&1 | tee gradle-test.log
 
       - name: build mod jar
-        run: ./gradlew build --stacktrace
+        if: success()
+        run: |
+          set -o pipefail
+          ./gradlew build --stacktrace --console=plain --no-daemon 2>&1 | tee gradle-build.log
 
       - name: verify the playable jar exists
+        if: success()
         run: |
           set -e
           ls -la build/libs/
-          JAR="build/libs/${archives_base_name}-${mod_version}.jar"
           JAR="build/libs/virtualplanet-1.0.0.jar"
           test -f "$JAR" || { echo "ERROR: expected mod jar $JAR was not produced"; exit 1; }
           echo "Playable jar found: $JAR"
           unzip -l "$JAR" | head -40
+
+      # The workflow publishes diagnostics as check-run annotations AND as a pull request comment,
+      # because raw job logs are not always reachable from every environment.
+      - name: publish diagnostics
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import glob, os, urllib.parse
+          def esc(text):
+              return text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          for path in ['gradle-test.log', 'gradle-build.log']:
+              if not os.path.exists(path):
+                  continue
+              text = open(path, errors='replace').read().splitlines()
+              tail = [line for line in text if line.strip()][-60:]
+              if not tail:
+                  continue
+              print(f"::error title={path} tail::{esc(os.linesep.join(tail))}")
+          run_tail = []
+          for path in ['gradle-test.log', 'gradle-build.log']:
+              if os.path.exists(path):
+                  run_tail += [line for line in open(path, errors='replace').read().splitlines() if line.strip()][-120:]
+          if run_tail:
+              body = esc('```' + os.linesep + os.linesep.join(run_tail[-120:]) + os.linesep + '```')
+              print('::error title=full tail::' + body[:60000])
+          PY
+
+      - name: comment the tail on the pull request
+        if: failure()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --json number --jq '.[0].number' || true)
+          if [ -z "$PR" ]; then echo "no pull request for $GITHUB_REF_NAME"; exit 0; fi
+          {
+            echo "### CI failure on \`$GITHUB_REF_NAME\` ($GITHUB_RUN_ID)"
+            echo
+            echo '```'
+            tail -120 gradle-test.log gradle-build.log 2>/dev/null || true
+            echo '```'
+          } > ci-failure.md
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file ci-failure.md
+
+      - name: upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-logs
+          path: |
+            gradle-test.log
+            gradle-build.log
+          if-no-files-found: ignore
 
       - name: upload test report
         if: always()
@@ -56,6 +116,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: upload playable mod jar
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: virtualplanet-mod-jar
