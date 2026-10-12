@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -32,19 +32,22 @@ jobs:
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
 
+      - name: compile main and test sources
+        run: |
+          set -o pipefail
+          ./gradlew compileJava compileTestJava --console=plain --stacktrace 2>&1 | tee gradle-compile.log
+
       - name: run unit tests
         run: |
           set -o pipefail
-          ./gradlew test --stacktrace --console=plain --no-daemon 2>&1 | tee gradle-test.log
+          ./gradlew test --console=plain --stacktrace 2>&1 | tee gradle-test.log
 
       - name: build mod jar
-        if: success()
         run: |
           set -o pipefail
-          ./gradlew build --stacktrace --console=plain --no-daemon 2>&1 | tee gradle-build.log
+          ./gradlew build --console=plain --stacktrace 2>&1 | tee gradle-build.log
 
       - name: verify the playable jar exists
-        if: success()
         run: |
           set -e
           ls -la build/libs/
@@ -53,56 +56,80 @@ jobs:
           echo "Playable jar found: $JAR"
           unzip -l "$JAR" | head -40
 
-      # The workflow publishes diagnostics as check-run annotations AND as a pull request comment,
-      # because raw job logs are not always reachable from every environment.
-      - name: publish diagnostics
+      # --- diagnostics -------------------------------------------------------
+      # Raw job logs and artifacts are not reachable from every environment, so a
+      # failure publishes: (1) check-run annotations with the useful lines, and
+      # (2) a commit containing the full Gradle output for branch pushes.
+      - name: collect failure diagnostics
         if: failure()
+        shell: bash
         run: |
-          python3 - <<'PY'
-          import glob, os, urllib.parse
-          def esc(text):
-              return text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-          for path in ['gradle-test.log', 'gradle-build.log']:
-              if not os.path.exists(path):
-                  continue
-              text = open(path, errors='replace').read().splitlines()
-              tail = [line for line in text if line.strip()][-60:]
-              if not tail:
-                  continue
-              print(f"::error title={path} tail::{esc(os.linesep.join(tail))}")
-          run_tail = []
-          for path in ['gradle-test.log', 'gradle-build.log']:
-              if os.path.exists(path):
-                  run_tail += [line for line in open(path, errors='replace').read().splitlines() if line.strip()][-120:]
-          if run_tail:
-              body = esc('```' + os.linesep + os.linesep.join(run_tail[-120:]) + os.linesep + '```')
-              print('::error title=full tail::' + body[:60000])
-          PY
+          set +e
+          mkdir -p .ci-logs/test-results
+          cp gradle-*.log .ci-logs/ 2>/dev/null
+          cp build/test-results/test/*.xml .ci-logs/test-results/ 2>/dev/null
+          {
+            echo "### CI failure: run $GITHUB_RUN_ID on $GITHUB_SHA"
+            echo
+            for f in .ci-logs/gradle-compile.log .ci-logs/gradle-test.log .ci-logs/gradle-build.log; do
+              [ -f "$f" ] || continue
+              echo "===== $f ====="
+              echo "----- what went wrong -----"
+              grep -m 3 -A 25 "What went wrong" "$f"
+              echo "----- compiler / resolver messages -----"
+              grep -n -E "error:|error;|warning:|cannot find symbol|symbol:|location:|Could not resolve|Could not find|Execution failed for task|> Task .* FAILED|Unsupported class file|incompatible" "$f" | head -80
+              echo "----- test failures -----"
+              grep -n -E "FAILED|expected:|AssertionFailedError|Caused by|tests completed" "$f" | head -40
+              echo "----- head of log -----"
+              head -40 "$f"
+            done
+          } > .ci-logs/summary.txt 2>&1
+          cat .ci-logs/summary.txt
 
-      - name: comment the tail on the pull request
+      - name: publish diagnostics as check-run annotations
         if: failure()
+        shell: bash
+        run: |
+          set +e
+          awk 'NR <= 60 { gsub(/%/,"%25"); print "::error title=CI diagnostic::" $0 }' .ci-logs/summary.txt
+
+      - name: commit diagnostics back to the branch
+        if: failure() && github.event_name == 'push'
+        shell: bash
+        run: |
+          set +e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .ci-logs
+          git commit -m "CI diagnostics for ${GITHUB_SHA} [skip ci]" || exit 0
+          git push || exit 0
+
+      - name: comment the diagnostics on the pull request
+        if: failure() && github.event_name == 'pull_request'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --json number --jq '.[0].number' || true)
-          if [ -z "$PR" ]; then echo "no pull request for $GITHUB_REF_NAME"; exit 0; fi
+          PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_HEAD_REF" --json number --jq '.[0].number' || true)
+          if [ -z "$PR" ]; then echo "no pull request for $GITHUB_HEAD_REF"; exit 0; fi
           {
-            echo "### CI failure on \`$GITHUB_REF_NAME\` ($GITHUB_RUN_ID)"
+            echo "### CI failure on \`$GITHUB_HEAD_REF\` ($GITHUB_RUN_ID)"
             echo
             echo '```'
-            tail -120 gradle-test.log gradle-build.log 2>/dev/null || true
+            head -c 60000 .ci-logs/summary.txt 2>/dev/null || true
             echo '```'
           } > ci-failure.md
           gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file ci-failure.md
 
+      # --- artifacts ---------------------------------------------------------
       - name: upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: gradle-logs
           path: |
+            gradle-compile.log
             gradle-test.log
             gradle-build.log
           if-no-files-found: ignore
