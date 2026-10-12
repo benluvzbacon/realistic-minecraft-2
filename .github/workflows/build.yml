@@ -1,0 +1,185 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    name: Build and test (Java 21)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: setup jdk 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: setup gradle (with dependency cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: compile main and test sources
+        run: |
+          set -o pipefail
+          ./gradlew compileJava compileTestJava --console=plain --stacktrace 2>&1 | tee gradle-compile.log
+
+      - name: run unit tests
+        run: |
+          set -o pipefail
+          ./gradlew test --console=plain --stacktrace 2>&1 | tee gradle-test.log
+
+      - name: build mod jar
+        run: |
+          set -o pipefail
+          ./gradlew build --console=plain --stacktrace 2>&1 | tee gradle-build.log
+
+      - name: verify the playable jar exists
+        run: |
+          set -e
+          ls -la build/libs/
+          JAR="build/libs/virtualplanet-1.0.0.jar"
+          test -f "$JAR" || { echo "ERROR: expected mod jar $JAR was not produced"; exit 1; }
+          echo "Playable jar found: $JAR"
+          unzip -l "$JAR" | head -40
+
+      # --- diagnostics -------------------------------------------------------
+      # Raw job logs and artifacts are not reachable from every environment, so a
+      # failure publishes: (1) check-run annotations with the useful lines, and
+      # (2) a commit containing the full Gradle output for branch pushes.
+      - name: collect failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .ci-logs/test-results
+          cp gradle-*.log .ci-logs/ 2>/dev/null
+          cp build/test-results/test/*.xml .ci-logs/test-results/ 2>/dev/null
+          {
+            echo "### CI failure: run $GITHUB_RUN_ID on $GITHUB_SHA"
+            echo
+            for f in .ci-logs/gradle-compile.log .ci-logs/gradle-test.log .ci-logs/gradle-build.log; do
+              [ -f "$f" ] || continue
+              echo "===== $f ====="
+              echo "----- what went wrong -----"
+              grep -m 3 -A 25 "What went wrong" "$f"
+              echo "----- compiler / resolver messages -----"
+              grep -n -E "error:|error;|warning:|cannot find symbol|symbol:|location:|Could not resolve|Could not find|Execution failed for task|> Task .* FAILED|Unsupported class file|incompatible" "$f" | head -80
+              echo "----- test failures -----"
+              grep -n -E "FAILED|expected:|AssertionFailedError|Caused by|tests completed" "$f" | head -40
+              echo "----- head of log -----"
+              head -40 "$f"
+            done
+          } > .ci-logs/summary.txt 2>&1
+          cat .ci-logs/summary.txt
+
+      - name: publish diagnostics as check-run annotations
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          awk 'NR <= 60 { gsub(/%/,"%25"); print "::error title=CI diagnostic::" $0 }' .ci-logs/summary.txt
+
+      - name: publish the test summary
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          SUMMARY=$(grep -E "tests completed|BUILD SUCCESSFUL|BUILD FAILED" gradle-test.log gradle-build.log 2>/dev/null | head -5)
+          if [ -z "$SUMMARY" ]; then SUMMARY="no Gradle summary line found"; fi
+          printf '%s\n' "$SUMMARY" | awk '{ gsub(/%/,"%25"); print "::notice title=Gradle summary::" $0 }'
+          python3 - <<'PY'
+          import glob
+          import re
+          tests = failed = 0
+          for path in glob.glob("build/test-results/test/*.xml"):
+              head = open(path, errors="replace").read(2000)
+              match = re.search(r'tests="(\d+)"[^>]*?failures="(\d+)"', head)
+              if match:
+                  tests += int(match.group(1))
+                  failed += int(match.group(2))
+          print("::notice title=JUnit totals::{} tests, {} failures".format(tests, failed))
+          PY
+
+      - name: comment the diagnostics on the pull request
+        if: failure() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_HEAD_REF" --json number --jq '.[0].number' || true)
+          if [ -z "$PR" ]; then echo "no pull request for $GITHUB_HEAD_REF"; exit 0; fi
+          {
+            echo "### CI failure on \`$GITHUB_HEAD_REF\` ($GITHUB_RUN_ID)"
+            echo
+            echo '```'
+            head -c 60000 .ci-logs/summary.txt 2>/dev/null || true
+            echo '```'
+          } > ci-failure.md
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file ci-failure.md
+
+      # --- artifacts ---------------------------------------------------------
+      - name: upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-logs
+          path: |
+            gradle-compile.log
+            gradle-test.log
+            gradle-build.log
+          if-no-files-found: ignore
+
+      - name: upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/reports/tests/test
+          if-no-files-found: ignore
+
+      - name: upload playable mod jar
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: virtualplanet-mod-jar
+          path: build/libs/virtualplanet-1.0.0.jar
+          if-no-files-found: error
+
+  release:
+    name: Publish release on version tag
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: download built mod jar
+        uses: actions/download-artifact@v4
+        with:
+          name: virtualplanet-mod-jar
+          path: dist
+
+      - name: create github release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ls -la dist/
+          gh release create "$GITHUB_REF_NAME" dist/*.jar \
+            --title "Virtual Planet: Local Skies $GITHUB_REF_NAME" \
+            --notes "Automated release built by GitHub Actions. Mod jar: virtualplanet-1.0.0.jar (Minecraft 1.21.1, Fabric)."
