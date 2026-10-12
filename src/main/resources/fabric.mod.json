@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "virtualplanet",
+	"version": "${version}",
+	"name": "Virtual Planet: Local Skies",
+	"description": "Treats the flat Minecraft world as a virtual spherical planet so that every player sees their own local sun, moon and twilight at the same shared world time. The world itself stays flat and untouched.",
+	"authors": [
+		"Virtual Planet: Local Skies contributors"
+	],
+	"contact": {
+		"homepage": "https://github.com/benluvzbacon/realistic-minecraft-2",
+		"sources": "https://github.com/benluvzbacon/realistic-minecraft-2"
+	},
+	"license": "MIT",
+	"icon": "assets/virtualplanet/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"dev.virtualplanet.VirtualPlanet"
+		],
+		"client": [
+			"dev.virtualplanet.client.VirtualPlanetClient"
+		]
+	},
+	"mixins": [
+		"virtualplanet.mixins.json",
+		{
+			"config": "virtualplanet.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.15.11",
+		"minecraft": "~1.21.1",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}

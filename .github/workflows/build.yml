@@ -1,0 +1,87 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test (Java 21)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: setup jdk 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: setup gradle (with dependency cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: run unit tests
+        run: ./gradlew test --stacktrace
+
+      - name: build mod jar
+        run: ./gradlew build --stacktrace
+
+      - name: verify the playable jar exists
+        run: |
+          set -e
+          ls -la build/libs/
+          JAR="build/libs/${archives_base_name}-${mod_version}.jar"
+          JAR="build/libs/virtualplanet-1.0.0.jar"
+          test -f "$JAR" || { echo "ERROR: expected mod jar $JAR was not produced"; exit 1; }
+          echo "Playable jar found: $JAR"
+          unzip -l "$JAR" | head -40
+
+      - name: upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/reports/tests/test
+          if-no-files-found: ignore
+
+      - name: upload playable mod jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: virtualplanet-mod-jar
+          path: build/libs/virtualplanet-1.0.0.jar
+          if-no-files-found: error
+
+  release:
+    name: Publish release on version tag
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: download built mod jar
+        uses: actions/download-artifact@v4
+        with:
+          name: virtualplanet-mod-jar
+          path: dist
+
+      - name: create github release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ls -la dist/
+          gh release create "$GITHUB_REF_NAME" dist/*.jar \
+            --title "Virtual Planet: Local Skies $GITHUB_REF_NAME" \
+            --notes "Automated release built by GitHub Actions. Mod jar: virtualplanet-1.0.0.jar (Minecraft 1.21.1, Fabric)."
