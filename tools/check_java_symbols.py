@@ -280,6 +280,18 @@ class Checker(object):
         info = self.index[node.name]
         variables = {}
         self.receivers = set()
+        # `Type::method` references are parsed as two qualifier-free MemberReferences; their parts are
+        # not variables and must not be checked as such.
+        self.method_ref_parts = set()
+        for member in members(node.body):
+            if isinstance(member, (T.MethodDeclaration, T.ConstructorDeclaration, T.FieldDeclaration)):
+                for found in walk(member):
+                    if isinstance(found, T.MethodReference):
+                        for part in (found.expression, found.method):
+                            for nested in walk(part):
+                                self.method_ref_parts.add(id(nested))
+                        self.method_ref_parts.add(id(found.expression))
+                        self.method_ref_parts.add(id(found.method))
         self.known_names = self.harvest_names(node, info, variables)
         for member in members(node.body):
             if isinstance(member, (T.MethodDeclaration, T.ConstructorDeclaration, T.FieldDeclaration)):
@@ -370,6 +382,8 @@ class Checker(object):
         elif isinstance(node, T.MemberReference):
             if not node.qualifier:
                 name = node.member
+                if id(node) in self.method_ref_parts:
+                    return
                 if name in self.known_names or name in OBJECT_METHODS:
                     return
                 if getattr(node, "qualifier", None) is None and name in ("length", "class"):

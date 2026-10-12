@@ -1,7 +1,9 @@
 package dev.virtualplanet;
 
+import dev.virtualplanet.command.VirtualPlanetCommand;
 import dev.virtualplanet.config.PlanetConfig;
 import dev.virtualplanet.config.PlanetConfigManager;
+import dev.virtualplanet.net.PlanetConfigSync;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
@@ -29,6 +31,9 @@ public class VirtualPlanet implements ModInitializer {
         if (!warnings.isEmpty()) {
             LOGGER.warn("Virtual Planet configuration reported {} warning(s); see the log above", warnings.size());
         }
+        // Server side: payload type, join sync, border watcher and the /virtualplanet command.
+        PlanetConfigSync.register();
+        VirtualPlanetCommand.register();
     }
 
     /** Namespaced identifier helper. */
