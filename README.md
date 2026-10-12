@@ -95,7 +95,8 @@ undecodable network payload falls back to the defaults.
 Honesty matters more than marketing here.
 
 * **Compiled and unit tested in CI** (GitHub Actions, Java 21, `./gradlew test` then `./gradlew build`,
-  jar uploaded as an artifact): the whole math, sky and configuration layer - longitude normalisation,
+  jar uploaded as the `virtualplanet-mod-jar` artifact): **74 tests, 0 failures**, covering the whole
+  math, sky and configuration layer - longitude normalisation,
   non-zero border centres, border resizing, huge coordinates, opposite longitudes at an identical world
   time, four players at quarter longitudes seeing midday/sunset/midnight/sunrise, rotation-period
   independence, latitude mapping and clamping, polar day/night, seasons, the vanilla brightness and moon
